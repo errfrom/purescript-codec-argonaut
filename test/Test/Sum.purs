@@ -68,7 +68,7 @@ instance Show SampleFlat where
   show = genericShow
 
 codecSampleFlat ∷ JsonCodec SampleFlat
-codecSampleFlat = sumFlatWith { tag: Proxy @"tag" } "Sample"
+codecSampleFlat = sumFlatWith { tag: (Proxy :: _ "tag") } "Sample"
   { "FlatFoo": unit
   , "FlatBar": CR.record { errors: C.int }
   , "FlatBaz": CR.record
