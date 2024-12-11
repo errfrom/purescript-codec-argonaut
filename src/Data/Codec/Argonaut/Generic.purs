@@ -2,6 +2,8 @@ module Data.Codec.Argonaut.Generic where
 
 import Prelude
 
+import Aeson (Aeson)
+import Aeson (fromString, toString) as Aeson
 import Control.Alt ((<|>))
 import Data.Argonaut.Core as J
 import Data.Codec as C
@@ -29,8 +31,8 @@ nullarySum name =
     (nullarySumEncode <<< from)
 
 class NullarySumCodec r where
-  nullarySumEncode ∷ r → J.Json
-  nullarySumDecode ∷ String → J.Json → Either CA.JsonDecodeError r
+  nullarySumEncode ∷ r → Aeson
+  nullarySumDecode ∷ String → Aeson → Either CA.JsonDecodeError r
 
 instance nullarySumCodecSum ∷ (NullarySumCodec a, NullarySumCodec b) ⇒ NullarySumCodec (Sum a b) where
   nullarySumEncode = case _ of
@@ -41,9 +43,9 @@ instance nullarySumCodecSum ∷ (NullarySumCodec a, NullarySumCodec b) ⇒ Nulla
 
 instance nullarySumCodecCtor ∷ IsSymbol name ⇒ NullarySumCodec (Constructor name NoArguments) where
   nullarySumEncode _ =
-    J.fromString $ reflectSymbol (Proxy ∷ Proxy name)
+    Aeson.fromString $ reflectSymbol (Proxy ∷ Proxy name)
   nullarySumDecode name j = do
-    tag ← note (CA.Named name (CA.TypeMismatch "String")) (J.toString j)
+    tag ← note (CA.Named name (CA.TypeMismatch "String")) (Aeson.toString j)
     if tag /= reflectSymbol (Proxy ∷ Proxy name) then
       Left (CA.Named name (CA.UnexpectedValue j))
     else

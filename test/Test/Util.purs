@@ -2,6 +2,7 @@ module Test.Util where
 
 import Prelude
 
+import Aeson (Aeson, jsonToAeson)
 import Control.Monad.Gen as Gen
 import Data.Argonaut.Core as J
 import Data.Argonaut.Gen as GenJ
@@ -12,6 +13,8 @@ import Foreign.Object as FO
 import Foreign.Object.Gen as FOMG
 import Test.QuickCheck (Result(..), (<?>))
 import Test.QuickCheck.Gen (Gen)
+
+foreign import stringifyAesonWithIndent :: Int -> Aeson -> String
 
 propCodec' ∷ ∀ a. (a → a → Boolean) → (a → String) → Gen a → JA.JsonCodec a → Gen Result
 propCodec' eq' show' gen codec = do
@@ -32,5 +35,8 @@ propCodec'' = propCodec' eq
 genInt ∷ Gen Int
 genInt = Gen.chooseInt (-100000) 100000
 
-genJObject ∷ Gen (FO.Object J.Json)
-genJObject = FOMG.genForeignObject genAsciiString GenJ.genJson
+genJObject ∷ Gen (FO.Object Aeson)
+genJObject = FOMG.genForeignObject genAsciiString genAeson
+
+genAeson :: Gen Aeson
+genAeson = jsonToAeson <$> GenJ.genJson

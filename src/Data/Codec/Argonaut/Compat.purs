@@ -6,6 +6,8 @@ module Data.Codec.Argonaut.Compat
 
 import Prelude hiding (identity, map, void)
 
+import Aeson (Aeson)
+import Aeson (aesonNull, isNull) as Aeson
 import Data.Argonaut.Core as J
 import Data.Bifunctor as BF
 import Data.Codec as Codec
@@ -26,14 +28,14 @@ import Foreign.Object as FO
 maybe ∷ ∀ a. JsonCodec a → JsonCodec (Maybe a)
 maybe codec = Codec.codec' dec enc
   where
-  dec ∷ J.Json → Either JsonDecodeError (Maybe a)
+  dec ∷ Aeson → Either JsonDecodeError (Maybe a)
   dec j
-    | J.isNull j = pure Nothing
+    | Aeson.isNull j = pure Nothing
     | otherwise = BF.bimap (Named "Maybe") Just ((decode codec j))
 
-  enc ∷ Maybe a → J.Json
+  enc ∷ Maybe a → Aeson
   enc = case _ of
-    Nothing → J.jsonNull
+    Nothing → Aeson.aesonNull
     Just a → encode codec a
 
 -- | A codec for `StrMap` values.
@@ -52,5 +54,5 @@ foreignObject codec =
   fromArray ∷ ∀ v. Array (Tuple String v) → FO.Object v
   fromArray = FO.fromFoldable
 
-  decodeItem ∷ Tuple String J.Json → Either JsonDecodeError (Tuple String a)
+  decodeItem ∷ Tuple String Aeson → Either JsonDecodeError (Tuple String a)
   decodeItem (Tuple key value) = BF.bimap (AtKey key) (Tuple key) (decode codec value)

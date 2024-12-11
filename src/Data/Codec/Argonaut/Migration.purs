@@ -56,6 +56,8 @@ module Data.Codec.Argonaut.Migration
 
 import Prelude
 
+import Aeson (Aeson)
+import Aeson (caseAesonObject, fromObject) as Aeson
 import Data.Argonaut.Core as J
 import Data.Codec.Argonaut (JsonCodec)
 import Data.Codec.Argonaut as Codec
@@ -67,30 +69,30 @@ import Foreign.Object.ST as FOST
 -- | When dealing with a JSON object that may be missing a field, this codec
 -- | can be used to alter the JSON before parsing to ensure a default value is
 -- | present instead.
-addDefaultField ∷ String → J.Json → JsonCodec J.Json
+addDefaultField ∷ String → Aeson → JsonCodec Aeson
 addDefaultField field = addDefaultOrUpdateField field <<< fromMaybe
 
 -- | Re-maps the value of a field in a JSON object.
-updateField ∷ String → (J.Json → J.Json) → JsonCodec J.Json
+updateField ∷ String → (Aeson → Aeson) → JsonCodec Aeson
 updateField field = alterField field <<< map
 
 -- | When dealing with a JSON object that may be missing a field, this codec
 -- | can be used to alter the JSON before parsing to ensure a default value is
 -- | present instead. Similar to `addDefaultField`, but allows existing values
 -- | to be modified also.
-addDefaultOrUpdateField ∷ String → (Maybe J.Json → J.Json) → JsonCodec J.Json
+addDefaultOrUpdateField ∷ String → (Maybe Aeson → Aeson) → JsonCodec Aeson
 addDefaultOrUpdateField field = alterField field <<< map Just
 
 -- | When dealing with a JSON object that has had a field name changed, this
 -- | codec can be used to alter the JSON before parsing to ensure the new field
 -- | name is used instead
-renameField ∷ String → String → JsonCodec J.Json
+renameField ∷ String → String → JsonCodec Aeson
 renameField oldName newName = Codec.codec' (pure <<< dec) identity
   where
-  dec ∷ J.Json → J.Json
-  dec j = J.caseJsonObject j (J.fromObject <<< rename) j
+  dec ∷ Aeson → Aeson
+  dec j = Aeson.caseAesonObject j (Aeson.fromObject <<< rename) j
 
-  rename ∷ FO.Object J.Json → FO.Object J.Json
+  rename ∷ FO.Object Aeson → FO.Object Aeson
   rename obj = maybe obj (uncurry (FO.insert newName)) (FO.pop oldName obj)
 
 -- | Prepares an object from a legacy codec for use in a `Variant` or
@@ -113,13 +115,13 @@ renameField oldName newName = Codec.codec' (pure <<< dec) identity
 -- |
 -- | If the tag field is missing from the input, it will also be missing in the
 -- | output.
-nestForTagged ∷ JsonCodec J.Json
+nestForTagged ∷ JsonCodec Aeson
 nestForTagged = Codec.codec' (pure <<< dec) identity
   where
-  dec ∷ J.Json → J.Json
-  dec j = J.caseJsonObject j (J.fromObject <<< rewrite) j
+  dec ∷ Aeson → Aeson
+  dec j = Aeson.caseAesonObject j (Aeson.fromObject <<< rewrite) j
 
-  rewrite ∷ FO.Object J.Json → FO.Object J.Json
+  rewrite ∷ FO.Object Aeson → FO.Object Aeson
   rewrite obj =
     case FO.pop "tag" obj of
       Nothing → FO.runST do
@@ -130,16 +132,16 @@ nestForTagged = Codec.codec' (pure <<< dec) identity
         _ ← FOST.poke "tag" tagValue result
         FOST.poke "value" (mkValue obj') result
 
-  mkValue ∷ FO.Object J.Json → J.Json
+  mkValue ∷ FO.Object Aeson → Aeson
   mkValue obj = case FO.pop "value" obj of
     Just (Tuple valueValue obj') | FO.isEmpty obj' → valueValue
-    _ → J.fromObject obj
+    _ → Aeson.fromObject obj
 
-alterField ∷ String → (Maybe J.Json → Maybe J.Json) → JsonCodec J.Json
+alterField ∷ String → (Maybe Aeson → Maybe Aeson) → JsonCodec Aeson
 alterField field f = Codec.codec' (pure <<< dec) identity
   where
-  dec ∷ J.Json → J.Json
-  dec j = J.caseJsonObject j (J.fromObject <<< setDefault) j
+  dec ∷ Aeson → Aeson
+  dec j = Aeson.caseAesonObject j (Aeson.fromObject <<< setDefault) j
 
-  setDefault ∷ FO.Object J.Json → FO.Object J.Json
+  setDefault ∷ FO.Object Aeson → FO.Object Aeson
   setDefault = FO.alter f field

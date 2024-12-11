@@ -2,6 +2,7 @@ module Test.Prim where
 
 import Prelude
 
+import Aeson (finiteNumber, stringifyAeson, toNumber, toObject) as Aeson
 import Control.Monad.Gen as Gen
 import Control.Monad.Gen.Common as GenC
 import Data.Argonaut.Core as J
@@ -12,7 +13,7 @@ import Data.Codec.Argonaut.Common as CA
 import Data.Either (Either(..), either, note)
 import Data.Generic.Rep (class Generic)
 import Data.Int as Int
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), fromJust, maybe)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Profunctor (dimap)
 import Data.Show.Generic (genericShow)
@@ -21,9 +22,10 @@ import Effect (Effect)
 import Effect.Console (log)
 import Foreign.Object as Object
 import Foreign.Object.Gen (genForeignObject)
+import Partial.Unsafe (unsafePartial)
 import Test.QuickCheck (Result(..), quickCheck)
 import Test.QuickCheck.Gen (Gen)
-import Test.Util (genInt, propCodec, propCodec', propCodec'')
+import Test.Util (genAeson, genInt, propCodec, propCodec', propCodec'')
 import Type.Proxy (Proxy(..))
 
 main ∷ Effect Unit
@@ -77,7 +79,7 @@ propBoolean ∷ Gen Result
 propBoolean = propCodec Gen.chooseBool CA.boolean
 
 propNumber ∷ Gen Result
-propNumber = propCodec (Gen.chooseFloat (-100000.0) 100000.0) CA.number
+propNumber = propCodec (unsafePartial fromJust <<< Aeson.finiteNumber <$> Gen.chooseFloat (-100000.0) 100000.0) CA.number
 
 propInt ∷ Gen Result
 propInt = propCodec genInt CA.int
@@ -89,10 +91,10 @@ propChar ∷ Gen Result
 propChar = propCodec genAsciiChar CA.char
 
 propCArray ∷ Gen Result
-propCArray = propCodec'' (show <<< map J.stringify) (Gen.unfoldable genJson) CA.jarray
+propCArray = propCodec'' (show <<< map Aeson.stringifyAeson) (Gen.unfoldable genAeson) CA.jarray
 
 propJObject ∷ Gen Result
-propJObject = propCodec'' (show <<< map J.stringify) (genForeignObject genAsciiString genJson) CA.jobject
+propJObject = propCodec'' (show <<< map Aeson.stringifyAeson) (genForeignObject genAsciiString genAeson) CA.jobject
 
 type TestRecord = { tag ∷ String, x ∷ Int, y ∷ Boolean }
 
@@ -155,9 +157,9 @@ propPresentOptionalField = do
   let value = { tag, x: Just x }
   let json = CA.encode codecRecordOptional value
   pure $ either Failed (pure Success) do
-    obj ← note "Encoded JSON is not an object" $ J.toObject json
+    obj ← note "Encoded JSON is not an object" $ Aeson.toObject json
     prop ← note "Optional property unexpectedly missing in object" $ Object.lookup "x" obj
-    n ← note "x value is not a plain number" $ J.toNumber prop
+    n ← note "x value is not a plain number" $ Aeson.toNumber prop
     if n == Int.toNumber x then pure unit
     else Left "x value is wrong"
 
@@ -167,7 +169,7 @@ propMissingOptionalField = do
   let value = { tag, x: Nothing }
   let json = CA.encode codecRecordOptional value
   pure $ either Failed (pure Success) do
-    obj ← note "Encoded JSON is not an object" $ J.toObject json
+    obj ← note "Encoded JSON is not an object" $ Aeson.toObject json
     maybe (Right Success) (\_ → Left "Optional property unexpectedly appeared in object") $ Object.lookup "x" obj
 
 newtype FixTest = FixTest (Maybe FixTest)

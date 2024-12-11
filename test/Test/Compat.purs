@@ -2,6 +2,8 @@ module Test.Compat where
 
 import Prelude
 
+import Aeson (class DecodeAeson, class EncodeAeson)
+import Aeson (decodeAeson, encodeAeson) as Aeson
 import Control.Monad.Gen.Common as GenC
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
@@ -71,12 +73,12 @@ propStrMapCodecDecodeCompat =
     (genForeignObject genAsciiString genInt)
     (JA.foreignObject JA.int)
 
-propCodecEncodeCompat ∷ ∀ a. Eq a ⇒ Show a ⇒ DecodeJson a ⇒ Gen a → JA.JsonCodec a → Gen Result
+propCodecEncodeCompat ∷ ∀ a. Eq a ⇒ Show a ⇒ DecodeAeson a ⇒ Gen a → JA.JsonCodec a → Gen Result
 propCodecEncodeCompat gen codec = do
   x ← gen
-  pure $ Right x === decodeJson (JA.encode codec x)
+  pure $ Right x === Aeson.decodeAeson (JA.encode codec x)
 
-propCodecDecodeCompat ∷ ∀ a. Eq a ⇒ Show a ⇒ EncodeJson a ⇒ Gen a → JA.JsonCodec a → Gen Result
+propCodecDecodeCompat ∷ ∀ a. Eq a ⇒ Show a ⇒ EncodeAeson a ⇒ Gen a → JA.JsonCodec a → Gen Result
 propCodecDecodeCompat gen codec = do
   x ← gen
-  pure $ Right x === JA.decode codec (encodeJson x)
+  pure $ Right x === JA.decode codec (Aeson.encodeAeson x)

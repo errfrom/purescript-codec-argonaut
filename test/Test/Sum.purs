@@ -2,6 +2,7 @@ module Test.Sum where
 
 import Prelude
 
+import Aeson (parseJsonStringToAeson, stringifyAeson) as Aeson
 import Control.Monad.Error.Class (liftEither)
 import Data.Argonaut.Core (stringifyWithIndent)
 import Data.Argonaut.Decode (parseJson)
@@ -20,7 +21,7 @@ import Effect.Console (log)
 import Effect.Exception (error, throw)
 import Test.QuickCheck (class Arbitrary, arbitrary, quickCheck)
 import Test.QuickCheck.Arbitrary (genericArbitrary)
-import Test.Util (propCodec)
+import Test.Util (propCodec, stringifyAesonWithIndent)
 import Type.Prelude (Proxy(..))
 import Type.Proxy (Proxy)
 
@@ -85,11 +86,11 @@ codecSampleFlat = sumFlatWith { tag: (Proxy :: _ "tag") } "Sample"
 
 check ∷ ∀ a. Show a ⇒ Eq a ⇒ JsonCodec a → a → String → Effect Unit
 check codec val expectEncoded = do
-  let encodedStr = stringifyWithIndent 2 $ encode codec val
+  let encodedStr = stringifyAesonWithIndent 2 $ encode codec val
   when (encodedStr /= expectEncoded) $
     throw ("check failed, expected: " <> expectEncoded <> ", got: " <> encodedStr)
 
-  json ← liftEither $ lmap (show >>> error) $ parseJson encodedStr
+  json ← liftEither $ lmap (show >>> error) $ Aeson.parseJsonStringToAeson encodedStr
 
   decoded ← liftEither $ lmap (show >>> error) $ decode codec json
 

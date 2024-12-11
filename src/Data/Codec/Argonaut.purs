@@ -32,6 +32,8 @@ module Data.Codec.Argonaut
 
 import Prelude
 
+import Aeson (Aeson, Finite)
+import Aeson (aesonNull, finiteNumber, fromArray, fromBoolean, fromFiniteNumber, fromInt, fromObject, fromString, stringifyAeson, toArray, toBoolean, toInt, toNull, toNumber, toObject, toString) as Aeson
 import Data.Argonaut.Core as J
 import Data.Array as A
 import Data.Bifunctor (bimap, lmap)
@@ -58,25 +60,25 @@ import Type.Proxy (Proxy)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | Codec type for `Json` values.
-type JsonCodec a = Codec' (Either JsonDecodeError) J.Json a
+type JsonCodec a = Codec' (Either JsonDecodeError) Aeson a
 
 -- | Error type for failures while decoding.
 data JsonDecodeError
   = TypeMismatch String
-  | UnexpectedValue J.Json
+  | UnexpectedValue Aeson
   | AtIndex Int JsonDecodeError
   | AtKey String JsonDecodeError
   | Named String JsonDecodeError
   | MissingValue
 
 derive instance eqJsonDecodeError ∷ Eq JsonDecodeError
-derive instance ordJsonDecodeError ∷ Ord JsonDecodeError
+-- TODO: derive instance ordJsonDecodeError ∷ Ord JsonDecodeError
 derive instance genericJsonDecodeError ∷ Generic JsonDecodeError _
 
 instance showJsonDecodeError ∷ Show JsonDecodeError where
   show = case _ of
     TypeMismatch s → "(TypeMismatch " <> show s <> ")"
-    UnexpectedValue j → "(UnexpectedValue " <> J.stringify j <> ")"
+    UnexpectedValue j → "(UnexpectedValue " <> Aeson.stringifyAeson j <> ")"
     AtIndex i e → "(AtIndex " <> show i <> " " <> show e <> ")"
     AtKey k e → "(AtKey " <> show k <> " " <> show e <> ")"
     Named s e → "(Named " <> show s <> " " <> show e <> ")"
@@ -89,43 +91,43 @@ printJsonDecodeError err =
   where
   go = case _ of
     TypeMismatch ty → "  Expected value of type '" <> ty <> "'."
-    UnexpectedValue val → "  Unexpected value " <> J.stringify val <> "."
+    UnexpectedValue val → "  Unexpected value " <> Aeson.stringifyAeson val <> "."
     AtIndex ix inner → "  At array index " <> show ix <> ":\n" <> go inner
     AtKey key inner → "  At object key " <> key <> ":\n" <> go inner
     Named name inner → "  Under '" <> name <> "':\n" <> go inner
     MissingValue → "  No value was found."
 
--- | The "identity codec" for `Json` values.
-json ∷ JsonCodec J.Json
+-- | The "identity codec" for `Aeson` values.
+json ∷ JsonCodec Aeson
 json = Codec.codec' pure identity
 
--- | A codec for `null` values in `Json`.
+-- | A codec for `null` values in `Aeson`.
 null ∷ JsonCodec Unit
-null = jsonPrimCodec "Null" J.toNull (const J.jsonNull)
+null = jsonPrimCodec "Null" Aeson.toNull (const Aeson.aesonNull)
 
--- | A codec for `Boolean` values in `Json`.
+-- | A codec for `Boolean` values in `Aeson`.
 boolean ∷ JsonCodec Boolean
-boolean = jsonPrimCodec "Boolean" J.toBoolean J.fromBoolean
+boolean = jsonPrimCodec "Boolean" Aeson.toBoolean Aeson.fromBoolean
 
--- | A codec for `Number` values in `Json`.
-number ∷ JsonCodec Number
-number = jsonPrimCodec "Number" J.toNumber J.fromNumber
+-- | A codec for `Number` values in `Aeson`.
+number ∷ JsonCodec (Finite Number)
+number = jsonPrimCodec "Number" (Aeson.finiteNumber <=< Aeson.toNumber) Aeson.fromFiniteNumber
 
--- | A codec for `Int` values in `Json`.
+-- | A codec for `Int` values in `Aeson`.
 int ∷ JsonCodec Int
-int = jsonPrimCodec "Int" (I.fromNumber <=< J.toNumber) (J.fromNumber <<< I.toNumber)
+int = jsonPrimCodec "Int" Aeson.toInt Aeson.fromInt
 
--- | A codec for `String` values in `Json`.
+-- | A codec for `String` values in `Aeson`.
 string ∷ JsonCodec String
-string = jsonPrimCodec "String" J.toString J.fromString
+string = jsonPrimCodec "String" Aeson.toString Aeson.fromString
 
--- | A codec for `Codepoint` values in `Json`.
+-- | A codec for `Codepoint` values in `Aeson`.
 codePoint ∷ JsonCodec S.CodePoint
-codePoint = jsonPrimCodec "CodePoint" (S.codePointAt 0 <=< J.toString) (J.fromString <<< S.singleton)
+codePoint = jsonPrimCodec "CodePoint" (S.codePointAt 0 <=< Aeson.toString) (Aeson.fromString <<< S.singleton)
 
--- | A codec for `Char` values in `Json`.
+-- | A codec for `Char` values in `Aeson`.
 char ∷ JsonCodec Char
-char = jsonPrimCodec "Char" (SCU.toChar <=< J.toString) (J.fromString <<< SCU.singleton)
+char = jsonPrimCodec "Char" (SCU.toChar <=< Aeson.toString) (Aeson.fromString <<< SCU.singleton)
 
 -- | A codec for `Void` values.
 void ∷ JsonCodec Void
@@ -134,12 +136,12 @@ void = jsonPrimCodec "Void" (const Nothing) absurd
 -- | A codec for `Array Json` values in `Json`. This does not decode the values
 -- | of the array, for that use `array` for a general array decoder, or
 -- | `indexedArray` with `index` to decode fixed length array encodings.
-jarray ∷ JsonCodec (Array J.Json)
-jarray = jsonPrimCodec "Array" J.toArray J.fromArray
+jarray ∷ JsonCodec (Array Aeson)
+jarray = jsonPrimCodec "Array" Aeson.toArray Aeson.fromArray
 
 -- | A codec for `JObject` values in `Json`.
-jobject ∷ JsonCodec (FO.Object J.Json)
-jobject = jsonPrimCodec "Object" J.toObject J.fromObject
+jobject ∷ JsonCodec (FO.Object Aeson)
+jobject = jsonPrimCodec "Object" Aeson.toObject Aeson.fromObject
 
 -- | A codec for arbitrary length `Array`s where every item in the array
 -- | shares the same type.
@@ -154,14 +156,14 @@ array ∷ ∀ a. JsonCodec a → JsonCodec (Array a)
 array codec =
   Codec.codec'
     (\j → traverseWithIndex (\ix j' → BF.lmap (AtIndex ix) (Codec.decode codec j')) =<< Codec.decode jarray j)
-    (\a → J.fromArray (map (Codec.encode codec) a))
+    (\a → Aeson.fromArray (map (Codec.encode codec) a))
 
 -- | Codec type for specifically indexed `JArray` elements.
 type JIndexedCodec a =
   Codec
     (Either JsonDecodeError)
-    (Array J.Json)
-    (L.List J.Json)
+    (Array Aeson)
+    (L.List Aeson)
     a
     a
 
@@ -199,8 +201,8 @@ index ix codec =
 type JPropCodec a =
   Codec
     (Either JsonDecodeError)
-    (FO.Object J.Json)
-    (L.List (Tuple String J.Json))
+    (FO.Object Aeson)
+    (L.List (Tuple String Aeson))
     a
     a
 
@@ -258,7 +260,7 @@ recordProp
 recordProp p codecA codecR =
   let key = reflectSymbol p in Codec.codec (dec' key) (enc' key)
   where
-  dec' ∷ String → FO.Object J.Json → Either JsonDecodeError (Record r')
+  dec' ∷ String → FO.Object Aeson → Either JsonDecodeError (Record r')
   dec' key obj = do
     r ← Codec.decode codecR obj
     a ← BF.lmap (AtKey key) case FO.lookup key obj of
@@ -266,7 +268,7 @@ recordProp p codecA codecR =
       Nothing → Left MissingValue
     pure $ Record.unsafeSet key a r
 
-  enc' ∷ String → Record r' → L.List (Tuple String J.Json)
+  enc' ∷ String → Record r' → L.List (Tuple String Aeson)
   enc' key val =
     Tuple key (Codec.encode codecA (Record.unsafeGet key val))
       : Codec.encode codecR (unsafeForget val)
@@ -294,7 +296,7 @@ recordPropOptional p codecA codecR = Codec.codec dec' enc'
   key ∷ String
   key = reflectSymbol p
 
-  dec' ∷ FO.Object J.Json → Either JsonDecodeError (Record r')
+  dec' ∷ FO.Object Aeson → Either JsonDecodeError (Record r')
   dec' obj = do
     r ← Codec.decode codecR obj
     a ← BF.lmap (AtKey key) case FO.lookup key obj of
@@ -302,7 +304,7 @@ recordPropOptional p codecA codecR = Codec.codec dec' enc'
       _ → Right Nothing
     pure $ Record.unsafeSet key a r
 
-  enc' ∷ Record r' → L.List (Tuple String J.Json)
+  enc' ∷ Record r' → L.List (Tuple String Aeson)
   enc' val = do
     let w = Codec.encode codecR (unsafeForget val)
     case Record.unsafeGet key val of
@@ -312,7 +314,7 @@ recordPropOptional p codecA codecR = Codec.codec dec' enc'
   unsafeForget ∷ Record r' → Record r
   unsafeForget = unsafeCoerce
 
-jsonPrimCodec ∷ ∀ a. String → (J.Json → Maybe a) → (a → J.Json) → JsonCodec a
+jsonPrimCodec ∷ ∀ a. String → (Aeson → Maybe a) → (a → Aeson) → JsonCodec a
 jsonPrimCodec ty f = Codec.codec' (maybe (Left (TypeMismatch ty)) pure <<< f)
 
 -- | Helper function for defining recursive codecs in situations where the codec

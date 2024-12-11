@@ -2,6 +2,7 @@ module Test.Record where
 
 import Prelude
 
+import Aeson (stringifyAeson, toObject) as Aeson
 import Control.Monad.Gen as Gen
 import Control.Monad.Gen.Common as GenC
 import Data.Argonaut.Core (stringify)
@@ -36,7 +37,7 @@ newtype Outer = Outer OuterR
 derive instance newtypeOuter ∷ Newtype Outer _
 
 instance showOuter ∷ Show Outer where
-  show (Outer r) = "Outer " <> stringify (CA.encode outerCodec r)
+  show (Outer r) = "Outer " <> Aeson.stringifyAeson (CA.encode outerCodec r)
 
 instance eqOuter ∷ Eq Outer where
   eq (Outer o1) (Outer o2) =
@@ -85,14 +86,14 @@ main = do
   log "Check optional Nothing is missing from json"
   quickCheckGen do
     v ← genInner
-    let obj = Json.toObject $ CA.encode innerCodec (v { o = Nothing })
+    let obj = Aeson.toObject $ CA.encode innerCodec (v { o = Nothing })
     pure $ assertEquals (Just [ "m", "n" ]) (Object.keys <$> obj)
 
   log "Check optional Just is present in the json"
   quickCheckGen do
     b ← Gen.chooseBool
     v ← genInner
-    let obj = Json.toObject $ CA.encode innerCodec (v { o = Just b })
+    let obj = Aeson.toObject $ CA.encode innerCodec (v { o = Just b })
     pure $ assertEquals (Just [ "m", "n", "o" ]) (Object.keys <$> obj)
 
   pure unit

@@ -2,6 +2,7 @@ module Data.Codec.Argonaut.Variant where
 
 import Prelude
 
+import Aeson (Aeson)
 import Data.Argonaut.Core as J
 import Data.Codec (Codec(..))
 import Data.Codec as Codec
@@ -96,7 +97,7 @@ variantCase
 variantCase proxy eacodec (Codec dec enc) = Codec.Codec dec' enc'
   where
 
-  dec' ∷ J.Json → Either JsonDecodeError (Variant r')
+  dec' ∷ Aeson → Either JsonDecodeError (Variant r')
   dec' j = do
     obj ← decode jobject j
     tag ← decode (prop "tag" string) obj
@@ -109,7 +110,7 @@ variantCase proxy eacodec (Codec dec enc) = Codec.Codec dec' enc'
     else
       coerceR <$> dec j
 
-  enc' ∷ Variant r' → Tuple J.Json (Variant r')
+  enc' ∷ Variant r' → Tuple Aeson (Variant r')
   enc' v =
     on proxy
       ( \v' → flip Tuple v $ encode jobject $
